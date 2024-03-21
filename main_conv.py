@@ -1,0 +1,173 @@
+import numpy as np
+import torch 
+from torch import nn, optim
+from models import ConvGNN
+from copy import deepcopy
+from utils import *
+from tqdm import tqdm
+
+args = parse_args()
+
+skip_val = False
+dset = args.dset
+stationary = dset.startswith("synth")
+
+m = args.m
+pred_step = args.pred_step # how many steps in the future we want to predict
+if torch.cuda.is_available():
+    print("Using CUDA")
+    device = "cuda"
+else:
+    device = "cpu"
+T = args.T
+gamma = args.gamma
+dimNodeSignals = args.dimNodeSignals
+L = len(dimNodeSignals) - 1
+nFilterTaps = [args.filter_taps] * L
+dimLayersMLP = args.dimLayersMLP
+lr = args.lr
+
+Xfold, nTotal, y, Yscaler = load_and_normalize_data(dset, m, pred_step, rec=False)
+Xfold, y = Xfold.to(device), y.to(device)
+
+nEpochs = args.nEpochs
+train_perc, valid_perc, test_perc = 0.2, 0.1, 0.7
+
+idxTotal = torch.LongTensor(np.arange(nTotal)).to(device) # For time-series, keep temporal order
+
+idxTrain = idxTotal[:np.floor(train_perc*nTotal).astype(int)]
+idxValid = idxTotal[np.floor((train_perc)*nTotal).astype(int):np.floor((train_perc+valid_perc)*nTotal).astype(int)]
+idxTest = idxTotal[np.floor((train_perc+valid_perc)*nTotal).astype(int):]
+
+xTrain = Xfold[idxTrain]
+xValid = Xfold[idxValid]
+xTest = Xfold[idxTest] 
+nTrain = idxTrain.shape[0]
+
+yTrain = y[idxTrain]
+yValid = y[idxValid]
+yTest = y[idxTest]
+C = torch.cov(xTrain.squeeze().T) # Compute covariance on current data
+C = C / torch.trace(C) # trace-normalize to avoid numerical issues
+
+GNN = ConvGNN(dimNodeSignals=dimNodeSignals, # hidden size
+                                nFilterTaps=nFilterTaps, # k, i.e. neighborhoods (len = len(dimNodeSignals)-1)
+                                bias=True, 
+                                nonlinearity=nn.LeakyReLU, 
+                                dimLayersMLP=dimLayersMLP, 
+                                GSO=C,
+                                T=T).to(device)
+
+batchSize = args.batchSize
+nTrainBatches = int(np.ceil(nTrain / batchSize))
+
+Loss = nn.MSELoss()
+MAE = nn.L1Loss()
+MSE = nn.MSELoss()
+if args.optimizer == "Adam":
+    optimizer = optim.Adam(GNN.parameters(), lr=lr, weight_decay=0.001)
+elif args.optimizer == "SGD":
+    optimizer = optim.SGD(GNN.parameters(), lr=lr)
+else:
+    print("Optimizer not allowed")
+    raise Exception()
+
+Best_Valid_Loss, Best_Valid_MAPE = 1e10, 1e10
+for epoch in range(nEpochs):
+    C_old = None
+    mean = torch.zeros(xTrain.shape[2]).to(device)
+    tot_train_loss = []
+    tot_val_mae = 0.
+    tot_val_mape = 0.
+    train_perm_idx = torch.randperm(nTrainBatches).to(device) # shuffle order during training
+
+    for batch in tqdm(range(nTrainBatches)):
+        xTrainBatch, yTrainBatch = selectCurrentBatch(train_perm_idx[batch].cpu().item(), batchSize, L, T, nTrain, device, xTrain, yTrain)
+        C, C_old, mean = update_covariance_mat(C_old, xTrainBatch[L*(T-1):], gamma=gamma, 
+                                               mean=mean, stationary=stationary, n=batch*batchSize)
+        GNN.changeGSO(C)
+
+        GNN.zero_grad()
+        yHatTrainBatch = GNN(xTrainBatch)
+        lossValueTrain = Loss(yHatTrainBatch.squeeze(), yTrainBatch.squeeze())
+        lossValueTrain.backward()
+        optimizer.step()
+        tot_train_loss.append(lossValueTrain.detach())
+        
+    all_pred = []
+    if skip_val:
+        Best_GNN = deepcopy(GNN)
+    else:
+        with torch.no_grad():
+            prev_n = xTrain.shape[0]
+            nValid = xValid.shape[0]
+            nValidBatches = int(np.ceil(nValid / batchSize))
+            for batch in range(nValidBatches):
+                xValidBatch, _ = selectCurrentBatch(batch, batchSize, L, T, nValid, device, xValid, yValid)
+                C, C_old, mean = update_covariance_mat(C_old, xValidBatch[L*(T-1):], gamma=gamma, 
+                                                       mean=mean, stationary=stationary, n=prev_n+batch*batchSize)
+                GNN.changeGSO(C.squeeze())
+
+                yHatValid = GNN(xValidBatch)
+                all_pred.append(yHatValid.detach())
+
+            all_pred = torch.cat(all_pred, dim=0) 
+            yHatValid = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
+            yValidInv = torch.tensor(Yscaler.inverse_transform(yValid.cpu()))
+
+            Valid_Loss = MAE(yHatValid.squeeze(), yValidInv.squeeze())
+            valid_MAPE = sMAPE(yValidInv.squeeze(), yHatValid.squeeze())
+
+            tot_val_mae += Valid_Loss.detach()
+            tot_val_mape += valid_MAPE.detach()
+
+            if tot_val_mae < Best_Valid_Loss:
+                Best_Valid_Loss = tot_val_mae
+                Best_GNN = deepcopy(GNN)
+
+            print(f"""Epoch {epoch} train loss (MSE) {sum(tot_train_loss)} val loss (MAE) {tot_val_mae} val MAPE {tot_val_mape}""")
+    
+all_pred = []
+all_pred_offline = []
+
+GNN = deepcopy(Best_GNN)
+
+mean = torch.cat([xTrain, xValid], dim=0).mean(0)
+prev_n = xTrain.shape[0] + xValid.shape[0]
+C_old = torch.cov(torch.cat([xTrain, xValid], dim=0).squeeze().T)
+
+if args.optimizer == "Adam":
+    optimizer = optim.Adam(GNN.parameters(), lr=lr, weight_decay=0.001)
+elif args.optimizer == "SGD":
+    optimizer = optim.SGD(GNN.parameters(), lr=lr)
+
+testBatchSize = 1
+
+nTest = yTest.shape[0]
+nTestBatches = int(np.ceil(nTest / testBatchSize))
+all_test_loss = []
+print("Testing")
+for batch in tqdm(range(nTestBatches)):
+    xTestBatch, yTestBatch = selectCurrentBatch(batch, testBatchSize, L, T, nTest, device, xTest, yTest)
+    C, C_old, mean = update_covariance_mat(C_old, xTestBatch[L*(T-1):], gamma=gamma, 
+                                           mean=mean, stationary=stationary, n=prev_n+batch*batchSize)
+    GNN.changeGSO(C)
+
+    GNN.zero_grad()
+    yHatTestBatch = GNN(xTestBatch)
+    lossValueTest = Loss(yHatTestBatch.squeeze(), yTestBatch.squeeze())
+    lossValueTest.backward()
+    optimizer.step()
+    all_pred.append(yHatTestBatch.detach())
+    all_test_loss.append(lossValueTest.detach())
+
+all_pred = torch.cat(all_pred, dim=0) 
+yBestTest = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
+yTestInv = torch.tensor(Yscaler.inverse_transform(yTest.cpu()))
+
+mae_test = MAE(yBestTest , yTestInv)
+mse_test = MSE(yBestTest , yTestInv)
+mape_test = sMAPE(yTestInv, yBestTest)
+
+print("MSE test: ", mse_test, "MAE test: ", mae_test, "sMAPE test: ", mape_test)
+
