@@ -15,6 +15,7 @@ The following snippet is an example of an experiment using STVNN.
 ```
 python main_conv.py --pred_step 1 --T 5 --optimizer Adam --lr 0.001 --nEpochs 40 --gamma 0.01 --dimNodeSignals 1,128,64 --filter_taps 2 --dimLayersMLP 64,32,1 --dset Molene
 ```
+The supported datasets are `Molene`, `exchange_rate` and `NOA`.
 
 ## Notes
 
