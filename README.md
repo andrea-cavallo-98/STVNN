@@ -4,7 +4,7 @@ This repository contains the code for the Spatio-Temporal coVariance Neural Netw
 
 ## Repository structure
 - `baselines`: contains the code to run the baselines LSTM, TPCA, VNN with temporal features and VNN-LSTM
-- `Data`: real datasets and notebook to generate synthetic datasets
+- `Data`: real datasets
 - `graphML.py`, `graphTools.py`: generic functions for graph processing
 - `layers.py`, `models.py`: implementation of main model and baselines
 - `main_conv.py`: code to run STVNN experiments, see below

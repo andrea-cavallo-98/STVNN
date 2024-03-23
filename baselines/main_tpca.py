@@ -1,7 +1,6 @@
 import sys 
 sys.path.append('../')
 
-import pandas as pd
 import numpy as np
 import torch 
 from torch import nn, optim
@@ -26,16 +25,11 @@ else:
 
 T = args.T
 gamma = args.gamma
-dimNodeSignals = args.dimNodeSignals
-L = len(dimNodeSignals) - 1
-nFilterTaps = [args.filter_taps] * L
-dimLayersMLP = [1]
 online = args.online
 write = args.out_file is not None
 h_size = args.h_size
 
 Xfold, nTotal, y, Yscaler = load_and_normalize_data(dset, m, pred_step, tpca=True, T=T, path='../Data/')
-
 Xfold, y = Xfold.to(device), y.to(device)
 
 n_nodes = Xfold.shape[1] // T
@@ -82,7 +76,6 @@ if pca:
 else:
     X_reduced = xTrain
     X_reduced_valid = xValid
-
 
 MAE = nn.L1Loss()
 MSE = nn.MSELoss()
@@ -210,7 +203,6 @@ out_str = f"\n{dset},{pred_step},{args.lr},{args.optimizer},{T}," + \
 if write:
     with open(args.out_file, "a") as f:
         f.write(out_str)
-
 
 print("Test results")
 print(f"MAE {mae_test} MAPE {mape_test} MSE {mse_test}")

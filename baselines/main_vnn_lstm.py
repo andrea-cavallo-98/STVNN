@@ -1,10 +1,10 @@
 import sys 
 sys.path.append('../')
-import pandas as pd
+
 import numpy as np
 import torch 
 from torch import nn, optim
-from models import ConvGNN, VNN, myLSTM, VNNLSTM
+from models import VNNLSTM
 from copy import deepcopy
 from utils import *
 from tqdm import tqdm
@@ -13,7 +13,6 @@ import graphML as gml
 args = parse_args()
 
 skip_val = False
-# dset = f"NOA"
 dset = args.dset
 stationary = dset.startswith("synth")
 

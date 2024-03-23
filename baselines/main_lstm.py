@@ -23,22 +23,8 @@ else:
     device = "cpu"
 
 T = args.T
-update_covariance = args.update_covariance
-gamma = args.gamma
 online = args.online
-dimInputSignals = 1
-dimOutputSignals = args.dimOutputSignals
-dimHiddenSignals = args.dimHiddenSignals
-nFilterTaps = [args.filter_taps,args.filter_taps]
-bias=True 
-nonlinearityHidden = nn.ReLU()
-nonlinearityOutput = nn.ReLU()
-nonlinearityReadout = nn.Identity()
-dimReadout = [1]
-dimEdgeFeatures = 1
-gateType = "time"
 write = args.out_file is not None
-
 
 Xfold, nTotal, y, Yscaler = load_and_normalize_data(dset, m, pred_step, rec=True, T=T, path='../Data/')
 Xfold, y = Xfold.to(device).squeeze(), y.to(device)

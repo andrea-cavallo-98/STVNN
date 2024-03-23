@@ -1,10 +1,10 @@
 import sys 
 sys.path.append('../')
-import pandas as pd
+
 import numpy as np
 import torch 
 from torch import nn, optim
-from models import ConvGNN, VNN
+from models import VNN
 from copy import deepcopy
 from utils import *
 from tqdm import tqdm
@@ -13,7 +13,6 @@ import graphML as gml
 args = parse_args()
 
 skip_val = False
-# dset = f"NOA"
 dset = args.dset
 stationary = dset.startswith("synth")
 
@@ -67,14 +66,6 @@ yTest = y[idxTest]
 C = torch.cov(xTrain[:,-1].squeeze().T) # Compute covariance on current data
 C = C / torch.trace(C) # trace-normalize to avoid numerical issues
 
-# GNN = ConvGNN(dimNodeSignals=dimNodeSignals, # hidden size
-#                                 nFilterTaps=nFilterTaps, # k, i.e. neighborhoods (len = len(dimNodeSignals)-1)
-#                                 bias=True, 
-#                                 nonlinearity=nn.LeakyReLU, 
-#                                 dimLayersMLP=dimLayersMLP, 
-#                                 GSO=C,
-#                                 T=T).to(device)
-
 GNN = VNN(dimNodeSignals=dimNodeSignals, 
              nFilterTaps=nFilterTaps, 
              bias=True, 
@@ -84,7 +75,6 @@ GNN = VNN(dimNodeSignals=dimNodeSignals,
              poolingSize=[1,1], 
              dimLayersMLP=dimLayersMLP, 
              GSO=C)
-
 
 batchSize = args.batchSize
 nTrainBatches = int(np.ceil(nTrain / batchSize))
@@ -204,10 +194,6 @@ if dset.startswith("synth"):
 all_pred = torch.cat(all_pred, dim=0) 
 yBestTest = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
 yTestInv = torch.tensor(Yscaler.inverse_transform(yTest.cpu()))
-
-# torch.save(GNN.state_dict(), f"trained_models/TVNN_{dset}.pt")
-# torch.save(args, f"trained_models/args_{dset}")
-# torch.save(yBestTest, f"trained_models/pred_{dset}.pt")
 
 mae_test = MAE(yBestTest , yTestInv)
 mse_test = MSE(yBestTest , yTestInv)
