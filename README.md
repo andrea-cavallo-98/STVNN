@@ -4,9 +4,9 @@ This repository contains the code for the Spatio-Temporal coVariance Neural Netw
 
 ## Description
 
-STVNN is a model for multivariate time series processing and forecasting. At different time snapshots, in performs convolutions using the sample covariance matrix as graph and it aggregates information over time to model temporal dependencies. A single layer produces the output
+STVNN is a model for multivariate time series processing and forecasting. At different time snapshots, it performs convolutions using the sample covariance matrix as graph and it aggregates information over time to model temporal dependencies. A single layer produces the output
 
-$$\textbf{z}_t = \sum_{t'=0}^{T-1}\sum_{k=0}^Kh_{kt'}\textbf{\hat{C}}_t^k \textbf{x_{t-t'}}$$.
+$$ \textbf{z}_t = \sum\_{t'=0}^{T-1}\sum\_{k=0}^K h\_{kt'} \mathbf{\hat{C}}_t^k \mathbf{x}\_{t-t'}.$$
 
 To account for streaming data and distribution shifts, STVNN is updated online. It is provably stable to covariance estimation uncertainties and it adapts to changes in the data distribution.
 
@@ -29,10 +29,21 @@ The supported datasets are `Molene`, `exchange_rate` and `NOA`.
 
 ## Requirements
 
-All requirements can be installed with
+Requirements can be installed with
 
 ```
 pip install requirements.txt
+```
+
+## Citation
+If you find this code useful, please cite
+```
+@InProceedings{cavallo2024stvnn,
+author="Cavallo, Andrea and Sabbaqi, Mohammad and Isufi, Elvin",
+title="Spatiotemporal Covariance Neural Networks",
+booktitle="Machine Learning and Knowledge Discovery in Databases: Research Track",
+year="2024",
+}
 ```
 
 ## Notes
