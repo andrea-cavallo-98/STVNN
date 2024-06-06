@@ -10,8 +10,7 @@ args = parse_args()
 
 skip_val = False
 dset = args.dset
-stationary = dset.startswith("synth")
-
+stationary = args.stationary
 m = args.m
 pred_step = args.pred_step # how many steps in the future we want to predict
 if torch.cuda.is_available():
@@ -33,7 +32,7 @@ Xfold, y = Xfold.to(device), y.to(device)
 nEpochs = args.nEpochs
 train_perc, valid_perc, test_perc = 0.2, 0.1, 0.7
 
-idxTotal = torch.LongTensor(np.arange(nTotal)).to(device) # For time-series, keep temporal order
+idxTotal = torch.LongTensor(np.arange(nTotal)).to(device)
 
 idxTrain = idxTotal[:np.floor(train_perc*nTotal).astype(int)]
 idxValid = idxTotal[np.floor((train_perc)*nTotal).astype(int):np.floor((train_perc+valid_perc)*nTotal).astype(int)]
@@ -169,5 +168,5 @@ mae_test = MAE(yBestTest , yTestInv)
 mse_test = MSE(yBestTest , yTestInv)
 mape_test = sMAPE(yTestInv, yBestTest)
 
-print("MSE test: ", mse_test, "MAE test: ", mae_test, "sMAPE test: ", mape_test)
+print("MSE test: ", mse_test.item(), "MAE test: ", mae_test.item(), "sMAPE test: ", mape_test.item())
 

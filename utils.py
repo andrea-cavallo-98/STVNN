@@ -238,6 +238,7 @@ def parse_args():
     # e.g. 3, then the filter has order 2
     parse.add_argument("--filter_taps", help="filter taps", type=int, default=2)
     parse.add_argument("--online", help="whether to update the model online", type=parse_boolean, default=True)
+    parse.add_argument("--stationary", help="whether to use the stationary or non-stationary covariance update", type=parse_boolean, default=False)
     parse.add_argument("--nEpochs", help="epochs", type=int, default=1)
     parse.add_argument("--batchSize", help="batch size", type=int, default=1)
     parse.add_argument("--dimOutputSignals", help="dim recurrent output", type=int, default=8)

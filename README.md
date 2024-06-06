@@ -25,7 +25,19 @@ The following snippet is an example of an experiment using STVNN.
 ```
 python main_conv.py --pred_step 1 --T 5 --optimizer Adam --lr 0.001 --nEpochs 40 --gamma 0.01 --dimNodeSignals 1,128,64 --filter_taps 2 --dimLayersMLP 64,32,1 --dset Molene
 ```
-The supported datasets are `Molene`, `exchange_rate` and `NOA`.
+
+Parameters:
+- `pred_step`: how many steps in the future to predict
+- `T`: size of temporal window
+- `optimizer`: `Adam` or `SGD`
+- `lr`: learning rate
+- `nEpochs`: how many epochs for training
+- `stationary`: whether to use the stationary or non-stationary covariance update (default `False`)
+- `gamma`: parameter for non-stationary covariance update (should be a real value between 0 and 1)
+- `dimNodeSignals`: size of the filterbanks as a csv string
+- `filter_taps`: order of the graph filters (corresponds to $K + 1$)
+- `dimLayersMLP`: size of the layers of MLP for the final task as a csv string
+- `dset`: `Molene`, `exchange_rate` or `NOA`.
 
 ## Requirements
 
