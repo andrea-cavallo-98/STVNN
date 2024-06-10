@@ -1,7 +1,6 @@
 import sys 
 sys.path.append('../')
 
-import pandas as pd
 import numpy as np
 import torch 
 from torch import nn, optim
@@ -23,7 +22,6 @@ else:
     device = "cpu"
 
 T = args.T
-online = args.online
 write = args.out_file is not None
 
 Xfold, nTotal, y, Yscaler = load_and_normalize_data(dset, m, pred_step, rec=True, T=T, path='../Data/')
@@ -60,7 +58,7 @@ nBatches = int(np.ceil(nTrain / batchSize))
 
 MAE = nn.L1Loss()
 MSE = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=args.lr)
 epoch = 0
 Best_Valid_Loss = 100
 for epoch in range(nEpochs):

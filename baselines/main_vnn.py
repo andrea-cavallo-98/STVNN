@@ -12,7 +12,6 @@ import graphML as gml
 
 args = parse_args()
 
-skip_val = False
 dset = args.dset
 stationary = dset.startswith("synth")
 
@@ -31,7 +30,6 @@ dimNodeSignals = args.dimNodeSignals
 L = len(dimNodeSignals) - 1
 nFilterTaps = [args.filter_taps] * L
 dimLayersMLP = args.dimLayersMLP 
-online = args.online
 write = args.out_file is not None
 lr = args.lr
 
@@ -43,12 +41,7 @@ n_nodes = Xfold.shape[2]
 
 nEpochs = args.nEpochs
 
-# Split indices
-if online:
-    train_perc, valid_perc, test_perc = 0.2, 0.1, 0.7
-else:
-    train_perc, valid_perc, test_perc = 0.7, 0.1, 0.2
-
+train_perc, valid_perc, test_perc = 0.2, 0.1, 0.7
 idxTotal = torch.LongTensor(np.arange(nTotal)).to(device) # For time-series, keep temporal order
 
 idxTrain = idxTotal[:np.floor(train_perc*nTotal).astype(int)]
@@ -65,6 +58,8 @@ yValid = y[idxValid]
 yTest = y[idxTest]
 C = torch.cov(xTrain[:,-1].squeeze().T) # Compute covariance on current data
 C = C / torch.trace(C) # trace-normalize to avoid numerical issues
+
+dimNodeSignals[0] = T
 
 GNN = VNN(dimNodeSignals=dimNodeSignals, 
              nFilterTaps=nFilterTaps, 
@@ -115,39 +110,36 @@ for epoch in range(nEpochs):
         tot_train_loss.append(lossValueTrain.detach())
         
     all_pred = []
-    if skip_val:
-        Best_GNN = deepcopy(GNN)
-    else:
-        with torch.no_grad():
-            prev_n = xTrain.shape[0]
-            nValid = xValid.shape[0]
-            nValidBatches = int(np.ceil(nValid / batchSize))
-            for batch in range(nValidBatches):
-                thisBatchIndices = torch.LongTensor(np.arange(nValid)[batch * batchSize : (batch + 1) * batchSize]).to(device)
-                xValidBatch = xValid[thisBatchIndices]
+    with torch.no_grad():
+        prev_n = xTrain.shape[0]
+        nValid = xValid.shape[0]
+        nValidBatches = int(np.ceil(nValid / batchSize))
+        for batch in range(nValidBatches):
+            thisBatchIndices = torch.LongTensor(np.arange(nValid)[batch * batchSize : (batch + 1) * batchSize]).to(device)
+            xValidBatch = xValid[thisBatchIndices]
 
-                C, C_old, mean = update_covariance_mat(C_old, xValidBatch[:,-1], gamma=gamma, 
-                                                       mean=mean, stationary=stationary, n=prev_n+batch*batchSize)
-                GNN.changeGSO(C.squeeze())
+            C, C_old, mean = update_covariance_mat(C_old, xValidBatch[:,-1], gamma=gamma, 
+                                                    mean=mean, stationary=stationary, n=prev_n+batch*batchSize)
+            GNN.changeGSO(C.squeeze())
 
-                yHatValid = GNN(xValidBatch)
-                all_pred.append(yHatValid.detach().squeeze(2))
+            yHatValid = GNN(xValidBatch)
+            all_pred.append(yHatValid.detach().squeeze(2))
 
-            all_pred = torch.cat(all_pred, dim=0) 
-            yHatValid = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
-            yValidInv = torch.tensor(Yscaler.inverse_transform(yValid.cpu()))
+        all_pred = torch.cat(all_pred, dim=0) 
+        yHatValid = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
+        yValidInv = torch.tensor(Yscaler.inverse_transform(yValid.cpu()))
 
-            Valid_Loss = MAE(yHatValid.squeeze(), yValidInv.squeeze())
-            valid_MAPE = sMAPE(yValidInv.squeeze(), yHatValid.squeeze())
+        Valid_Loss = MAE(yHatValid.squeeze(), yValidInv.squeeze())
+        valid_MAPE = sMAPE(yValidInv.squeeze(), yHatValid.squeeze())
 
-            tot_val_mae += Valid_Loss.detach()
-            tot_val_mape += valid_MAPE.detach()
+        tot_val_mae += Valid_Loss.detach()
+        tot_val_mape += valid_MAPE.detach()
 
-            if tot_val_mae < Best_Valid_Loss:
-                Best_Valid_Loss = tot_val_mae
-                Best_GNN = deepcopy(GNN)
+        if tot_val_mae < Best_Valid_Loss:
+            Best_Valid_Loss = tot_val_mae
+            Best_GNN = deepcopy(GNN)
 
-            print(f"""Epoch {epoch} train loss (MSE) {sum(tot_train_loss)} val loss (MAE) {tot_val_mae} val MAPE {tot_val_mape}""")
+        print(f"""Epoch {epoch} train loss (MSE) {sum(tot_train_loss)} val loss (MAE) {tot_val_mae} val MAPE {tot_val_mape}""")
     
 all_pred = []
 all_pred_offline = []
@@ -163,11 +155,7 @@ if args.optimizer == "Adam":
 elif args.optimizer == "SGD":
     optimizer = optim.SGD(GNN.parameters(), lr=lr)
 
-if online:
-    testBatchSize = 1
-else:
-    testBatchSize = args.batchSize
-
+testBatchSize = 1
 nTest = yTest.shape[0]
 nTestBatches = int(np.ceil(nTest / testBatchSize))
 all_test_loss = []
@@ -206,5 +194,5 @@ if write:
     with open(args.out_file, "a") as f:
         f.write(out_str)
 
-print("MSE test: ", mse_test, "MAE test: ", mae_test, "sMAPE test: ", mape_test)
+print("MSE test: ", mse_test.item(), "MAE test: ", mae_test.item(), "sMAPE test: ", mape_test.item())
 

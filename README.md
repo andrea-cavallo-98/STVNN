@@ -37,6 +37,7 @@ Parameters:
 - `dimNodeSignals`: size of the filterbanks as a csv string
 - `filter_taps`: order of the graph filters (corresponds to $K + 1$)
 - `dimLayersMLP`: size of the layers of MLP for the final task as a csv string
+- `batchSize`: batch size, set to 1 for the online setting
 - `dset`: `Molene`, `exchange_rate` or `NOA`.
 
 ## Requirements

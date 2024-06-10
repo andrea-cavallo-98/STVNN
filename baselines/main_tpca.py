@@ -9,9 +9,6 @@ from copy import deepcopy
 from utils import *
 from tqdm import tqdm
 
-online_test = True
-pca = True
-
 args = parse_args()
 
 dset = args.dset
@@ -25,7 +22,6 @@ else:
 
 T = args.T
 gamma = args.gamma
-online = args.online
 write = args.out_file is not None
 h_size = args.h_size
 
@@ -56,7 +52,7 @@ Cval = None
 
 C = torch.cov(xTrain.squeeze().T) # Compute covariance on current data
 
-regressor = Regressor(in_size=T*n_nodes, h_size=args.h_size, h_size_2=args.h_size//2, out_size=n_nodes)
+regressor = Regressor(in_size=T*n_nodes, h_size=args.h_size, out_size=n_nodes)
 optimizer = optim.Adam(regressor.parameters(), lr=0.001)
 
 batchSize = args.batchSize
@@ -70,12 +66,8 @@ for i in range(eig_vectors.shape[0]):
 
 sortedEig, indices=torch.sort(eig_values, dim=0, descending=True, out=None)
 eig_vectors = eig_vectors[:,indices]
-if pca:
-    X_reduced = torch.matmul(eig_vectors.T , xTrain.squeeze().T).T
-    X_reduced_valid = torch.matmul(eig_vectors.T , xValid.squeeze().T).T
-else:
-    X_reduced = xTrain
-    X_reduced_valid = xValid
+X_reduced = torch.matmul(eig_vectors.T , xTrain.squeeze().T).T
+X_reduced_valid = torch.matmul(eig_vectors.T , xValid.squeeze().T).T
 
 MAE = nn.L1Loss()
 MSE = nn.MSELoss()
@@ -117,11 +109,31 @@ while epoch < nEpochs:
     epoch+=1
 
 
-if not online_test:
-    #### 
-    ## Compute true covariance 
-    ####
-    C = torch.cov(Xfold.squeeze().T) # Compute covariance on current data
+
+all_pred = []
+all_loss = []
+
+mean = torch.cat([xTrain, xValid], dim=0).mean(0)
+prev_n = xTrain.shape[0] + xValid.shape[0]
+C_old = torch.cov(torch.cat([xTrain, xValid], dim=0).squeeze().T)
+
+testBatchSize = 1
+slidingWindowSize = 1
+
+nTest = yTest.shape[0]
+nBatches = int(np.ceil((nTest - testBatchSize) / slidingWindowSize)) + 1
+batchStart = 0
+print("Testing")
+regressor = deepcopy(best_model)
+optimizer = optim.Adam(regressor.parameters(), lr=0.001)
+C_dists = []    
+all_pred = []
+for n in tqdm(range(prev_n, nBatches+prev_n)):
+    thisBatchIndices = torch.LongTensor(np.arange(nTest)[batchStart : batchStart + testBatchSize]).to(device)
+    xTestBatch = xTest[torch.LongTensor(thisBatchIndices).to(device)] # B x G x N
+    yTestBatch = yTest[thisBatchIndices]
+
+    C, C_old, mean = update_covariance_mat(C_old, xTestBatch, gamma=gamma, mean=mean, stationary=False, norm=False)
 
     eig_values, eig_vectors = torch.linalg.eig(C)
     eig_values, eig_vectors = eig_values.real, eig_vectors.real
@@ -131,64 +143,22 @@ if not online_test:
 
     sortedEig, indices=torch.sort(eig_values, dim=0, descending=True, out=None)
     eig_vectors = eig_vectors[:,indices]
-    if pca:
-        X_reduced_test = torch.matmul(eig_vectors.T , xTest.squeeze().T).T
-    else:
-        X_reduced_test = xTest
-    all_pred = regressor(X_reduced_test).detach()
+
+    xTestBatch = torch.matmul(eig_vectors.T , xTestBatch.squeeze())
+    
+    # Perform prediction and compute loss
+    regressor.zero_grad()
+    yHatTestBatch = regressor(xTestBatch)
+    lossValueTest = Loss(yHatTestBatch.squeeze(), yTestBatch.squeeze())    
+    all_pred.append(yHatTestBatch.detach())    
+
+    lossValueTest.backward()
+    optimizer.step()
+
+    batchStart += slidingWindowSize
 
 
-else:
-
-    all_pred = []
-    all_loss = []
-
-    mean = torch.cat([xTrain, xValid], dim=0).mean(0)
-    prev_n = xTrain.shape[0] + xValid.shape[0]
-    C_old = torch.cov(torch.cat([xTrain, xValid], dim=0).squeeze().T)
-
-    testBatchSize = 1
-    slidingWindowSize = 1
-
-    nTest = yTest.shape[0]
-    nBatches = int(np.ceil((nTest - testBatchSize) / slidingWindowSize)) + 1
-    batchStart = 0
-    print("Testing")
-    regressor = deepcopy(best_model)
-    optimizer = optim.Adam(regressor.parameters(), lr=0.001)
-    C_dists = []    
-    all_pred = []
-    for n in tqdm(range(prev_n, nBatches+prev_n)):
-        thisBatchIndices = torch.LongTensor(np.arange(nTest)[batchStart : batchStart + testBatchSize]).to(device)
-        xTestBatch = xTest[torch.LongTensor(thisBatchIndices).to(device)] # B x G x N
-        yTestBatch = yTest[thisBatchIndices]
-
-        C, C_old, mean = update_covariance_mat(C_old, xTestBatch, gamma=gamma, mean=mean, stationary=False, norm=False)
-
-        eig_values, eig_vectors = torch.linalg.eig(C)
-        eig_values, eig_vectors = eig_values.real, eig_vectors.real
-        for i in range(eig_vectors.shape[0]):
-            if eig_vectors[0,i]<0:
-                eig_vectors[:,i] = -eig_vectors[:,i]
-
-        sortedEig, indices=torch.sort(eig_values, dim=0, descending=True, out=None)
-        eig_vectors = eig_vectors[:,indices]
-
-        xTestBatch = torch.matmul(eig_vectors.T , xTestBatch.squeeze())
-        
-        # Perform prediction and compute loss
-        regressor.zero_grad()
-        yHatTestBatch = regressor(xTestBatch)
-        lossValueTest = Loss(yHatTestBatch.squeeze(), yTestBatch.squeeze())    
-        all_pred.append(yHatTestBatch.detach())    
-
-        lossValueTest.backward()
-        optimizer.step()
-
-        batchStart += slidingWindowSize
-
-
-    all_pred = torch.stack(all_pred) 
+all_pred = torch.stack(all_pred) 
 
     
 yBestTest = torch.tensor(Yscaler.inverse_transform(all_pred.cpu()))
