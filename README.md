@@ -26,6 +26,12 @@ The following snippet is an example of an experiment using STVNN.
 python main_conv.py --pred_step 1 --T 5 --optimizer Adam --lr 0.001 --nEpochs 40 --gamma 0.01 --dimNodeSignals 1,128,64 --filter_taps 2 --dimLayersMLP 64,32,1 --dset Molene
 ```
 
+The experiments with baselines, instead, can be run using the following commands.
+```
+cd baselines
+python main_vnn.py --dset exchange_rate
+```
+
 Parameters:
 - `pred_step`: how many steps in the future to predict
 - `T`: size of temporal window
