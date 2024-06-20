@@ -51,7 +51,7 @@ Parameters:
 Requirements can be installed with
 
 ```
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Citation
