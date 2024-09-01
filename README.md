@@ -1,6 +1,6 @@
 # STVNN
 
-This repository contains the code for the Spatio-Temporal coVariance Neural Network (STVNN). 
+This repository contains the code for the Spatio-Temporal coVariance Neural Network (STVNN) defined in [this paper](https://link.springer.com/chapter/10.1007/978-3-031-70344-7_2). 
 
 ## Description
 
