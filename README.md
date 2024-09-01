@@ -60,8 +60,10 @@ If you find this code useful, please cite
 @InProceedings{cavallo2024stvnn,
 author="Cavallo, Andrea and Sabbaqi, Mohammad and Isufi, Elvin",
 title="Spatiotemporal Covariance Neural Networks",
-booktitle="Machine Learning and Knowledge Discovery in Databases: Research Track",
+booktitle="Machine Learning and Knowledge Discovery in Databases. Research Track",
 year="2024",
+publisher="Springer Nature Switzerland",
+pages="18--34",
 }
 ```
 
