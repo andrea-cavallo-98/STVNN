@@ -69,4 +69,4 @@ pages="18--34",
 
 ## Notes
 
-Part of the code is borrowed from [https://github.com/alelab-upenn/graph-neural-networks](https://github.com/alelab-upenn/graph-neural-networks).
+Part of the code is borrowed from [https://github.com/alelab-upenn/graph-neural-networks](https://github.com/alelab-upenn/graph-neural-networks) and [https://github.com/sihags/VNN](https://github.com/sihags/VNN).
